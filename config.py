@@ -4,7 +4,7 @@
 """
 
 # Deepseek API配置
-DEEPSEEK_API_KEY = "API_KEY"  # 替换为您的Deepseek API Key
+DEEPSEEK_API_KEY = "sk-0eeaa3766fb540fb8c069bd80b0cbeb4"  # 替换为您的Deepseek API Key
 DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
 DEEPSEEK_MODEL = "deepseek-chat"
 
@@ -19,6 +19,9 @@ SEARCH_TERMS = [
     "esophagus cancer"
 ]
 SEARCH_START_DATE = "2025/09/01"  # 开始日期 (YYYY/MM/DD)
+SEARCH_END_DATE = ""  # 结束日期 (YYYY/MM/DD)，留空则为当前日期
+MAX_SEARCH_RESULTS = 100  # 最大搜索篇数
+MAX_WORKERS = 5  # 并发总结的线程数
 
 # 三大杂志社期刊列表
 JOURNALS = {
@@ -130,6 +133,7 @@ JOURNALS = {
 OUTPUT_DIR = "output"
 REPORT_FILE = "report.md"
 EXCEL_FILE = "articles.xlsx"
+REVIEW_FILE = "literature_review.md"  # 文献综述单独文件
 
 # 请求配置
 REQUEST_TIMEOUT = 30

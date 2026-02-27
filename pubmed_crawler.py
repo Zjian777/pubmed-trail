@@ -23,24 +23,37 @@ class PubMedCrawler:
         if self.api_key:
             Entrez.api_key = self.api_key
 
-    def search_articles(self, search_terms: List[str], start_date: str, max_results: int = 1000) -> List[int]:
+    def search_articles(self, search_terms: List[str], start_date: str, end_date: str = None, max_results: int = 1000) -> List[int]:
         """
         搜索PubMed文章
 
         Args:
             search_terms: 搜索词列表
             start_date: 开始日期 (YYYY/MM/DD格式)
+            end_date: 结束日期 (YYYY/MM/DD格式)，默认为当前日期
             max_results: 最大返回结果数
 
         Returns:
             文章ID列表
         """
+        from datetime import datetime
+
+        # 如果没有指定结束日期，使用当前日期
+        if not end_date:
+            end_date = datetime.now().strftime("%Y/%m/%d")
+        else:
+            # 验证日期格式
+            try:
+                datetime.strptime(end_date, "%Y/%m/%d")
+            except ValueError:
+                end_date = datetime.now().strftime("%Y/%m/%d")
+
         # 构建搜索查询
         search_query = " OR ".join([f'("{term}"[Title/Abstract] OR {term}[MeSH Terms])'
                                      for term in search_terms])
 
         # 添加日期限制
-        date_query = f'("{start_date}"[Date - Publication] : "3000/12/31"[Date - Publication])'
+        date_query = f'("{start_date}"[Date - Publication] : "{end_date}"[Date - Publication])'
         full_query = f"({search_query}) AND {date_query}"
 
         print(f"搜索查询: {full_query}")
@@ -176,22 +189,28 @@ class PubMedCrawler:
             print(f"解析文章错误: {e}")
             return None
 
-    def get_articles(self, search_terms: List[str] = None, start_date: str = None) -> List[Dict]:
+    def get_articles(self, search_terms: List[str] = None, start_date: str = None, end_date: str = None, max_results: int = 100) -> List[Dict]:
         """
         获取所有符合条件的文章
 
         Args:
             search_terms: 搜索词列表
             start_date: 开始日期
+            end_date: 结束日期
+            max_results: 最大搜索篇数
 
         Returns:
             文章列表
         """
+        from datetime import datetime
+
         search_terms = search_terms or config.SEARCH_TERMS
         start_date = start_date or config.SEARCH_START_DATE
+        end_date = end_date or config.SEARCH_END_DATE or datetime.now().strftime("%Y/%m/%d")
+        max_results = max_results or config.MAX_SEARCH_RESULTS
 
         # 搜索文章ID
-        pmids = self.search_articles(search_terms, start_date)
+        pmids = self.search_articles(search_terms, start_date, end_date, max_results)
 
         if not pmids:
             print("未找到符合条件的文章")
