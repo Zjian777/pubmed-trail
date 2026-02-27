@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PubMed文献搜索与AI总结</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div id="app">
+        <!-- 顶部导航 -->
+        <nav class="gradient-bg text-white py-4 px-6 shadow-lg">
+            <div class="max-w-6xl mx-auto flex items-center justify-between">
+                <h1 class="text-2xl font-bold">PubMed文献搜索与AI总结</h1>
+                <span class="text-sm opacity-80">基于Deepseek AI</span>
+            </div>
+        </nav>
+
+        <div class="max-w-6xl mx-auto p-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- 左侧配置面板 -->
+                <div class="lg:col-span-1">
+                    <div class="card p-6">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-800">搜索配置</h2>
+
+                        <!-- 搜索主题 -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">搜索主题</label>
+                            <input v-model="searchParams.topic" type="text"
+                                placeholder="例如: 食管癌免疫治疗"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        </div>
+
+                        <!-- 时间范围 -->
+                        <div class="grid grid-cols-2 gap-3 mb-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">开始日期</label>
+                                <input v-model="searchParams.start_date" type="date"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">结束日期</label>
+                                <input v-model="searchParams.end_date" type="date"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                            </div>
+                        </div>
+
+                        <!-- 最大篇数 -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">最大搜索篇数</label>
+                            <input v-model.number="searchParams.max_results" type="number" min="1" max="500"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                        </div>
+
+                        <!-- 并发线程数 -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">并发线程数</label>
+                            <input v-model.number="searchParams.max_workers" type="number" min="1" max="10"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                        </div>
+
+                        <!-- 期刊筛选 -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">期刊筛选</label>
+                            <div class="space-y-2">
+                                <div v-for="(journals, publisher) in publishers" :key="publisher" class="border rounded-lg p-3">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <label class="font-medium text-gray-700">{{ publisher }}</label>
+                                        <input type="checkbox" v-model="selectedPublishers" :value="publisher"
+                                            class="w-4 h-4 text-purple-600">
+                                    </div>
+                                    <div class="ml-4 text-sm text-gray-500">
+                                        <span v-text="publishers[publisher] ? publishers[publisher].length : 0"></span> 种期刊
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 搜索按钮 -->
+                        <button @click="startSearch" :disabled="isSearching"
+                            class="w-full gradient-bg text-white py-3 px-4 rounded-lg font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                            <span v-if="!isSearching">开始搜索</span>
+                            <span v-else>搜索中...</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 右侧结果面板 -->
+                <div class="lg:col-span-2">
+                    <!-- 进度显示 -->
+                    <div v-if="isSearching || taskStatus" class="card p-6 mb-6">
+                        <h3 class="text-lg font-semibold mb-4">搜索进度</h3>
+                        <div class="mb-2 flex justify-between text-sm text-gray-600">
+                            <span>{{ taskMessage }}</span>
+                            <span>{{ taskProgress }}%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3">
+                            <div class="gradient-bg h-3 rounded-full transition-all duration-500"
+                                :style="{ width: taskProgress + '%' }"></div>
+                        </div>
+                    </div>
+
+                    <!-- 结果展示 -->
+                    <div v-if="results.length > 0" class="space-y-4">
+                        <!-- 文献综述 -->
+                        <div class="card p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-xl font-semibold text-gray-800">文献综述</h3>
+                                <div class="space-x-2">
+                                    <button @click="downloadFile('review')"
+                                        class="px-3 py-1 bg-purple-100 text-purple-700 rounded text-sm hover:bg-purple-200">
+                                        下载综述
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="prose max-w-none text-sm text-gray-600 whitespace-pre-wrap">{{ reviewContent }}</div>
+                        </div>
+
+                        <!-- 文章列表 -->
+                        <div class="card p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-xl font-semibold text-gray-800">文章列表 ({{ results.length }})</h3>
+                                <button @click="downloadFile('excel')"
+                                    class="px-3 py-1 bg-green-100 text-green-700 rounded text-sm hover:bg-green-200">
+                                    下载Excel
+                                </button>
+                            </div>
+                            <div class="space-y-4">
+                                <div v-for="(article, index) in results" :key="index"
+                                    class="border rounded-lg p-4 hover:shadow-md transition">
+                                    <div class="flex justify-between items-start">
+                                        <h4 class="font-medium text-gray-800 flex-1">{{ article.title }}</h4>
+                                        <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded ml-2">
+                                            {{ article.publisher }}
+                                        </span>
+                                    </div>
+                                    <div class="mt-2 text-sm text-gray-500">
+                                        <span>{{ article.journal }}</span>
+                                        <span class="mx-2">|</span>
+                                        <span>{{ article.pub_date }}</span>
+                                        <span class="mx-2">|</span>
+                                        <span>{{ article.authors }}</span>
+                                    </div>
+                                    <div v-if="article.summary" class="mt-3 text-sm text-gray-600 bg-gray-50 p-3 rounded">
+                                        <strong class="text-purple-700">AI总结:</strong> {{ article.summary }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 初始状态 -->
+                    <div v-if="!isSearching && results.length === 0 && !taskStatus" class="card p-12 text-center">
+                        <div class="text-gray-400 mb-4">
+                            <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                                </path>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-medium text-gray-600">配置搜索参数开始搜索</h3>
+                        <p class="text-gray-400 mt-2">搜索结果将显示在这里</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+
+        // 创建应用并配置Vue delimiters避免与Jinja2冲突
+        const app = createApp({
+            setup() {
+                // 默认日期
+                const today = new Date().toISOString().split('T')[0];
+                const lastYear = new Date();
+                lastYear.setFullYear(lastYear.getFullYear() - 1);
+                const lastYearDate = lastYear.toISOString().split('T')[0];
+
+                const searchParams = ref({
+                    topic: '',
+                    start_date: lastYearDate,
+                    end_date: today,
+                    max_results: 30,
+                    max_workers: 5
+                });
+
+                const publishers = ref({});
+                const selectedPublishers = ref([]);
+                const isSearching = ref(false);
+                const taskId = ref('');
+                const taskProgress = ref(0);
+                const taskMessage = ref('');
+                const taskStatus = ref('');
+                const results = ref([]);
+                const reviewContent = ref('');
+                const files = ref({});
+
+                // 获取配置
+                const loadConfig = async () => {
+                    try {
+                        const res = await axios.get('/api/config');
+                        publishers.value = res.data.journals;
+                        selectedPublishers.value = Object.keys(res.data.journals);
+
+                        const defaults = res.data.defaults;
+                        searchParams.value.max_results = defaults.max_results;
+                        searchParams.value.max_workers = defaults.max_workers;
+                        searchParams.value.start_date = defaults.start_date;
+                    } catch (e) {
+                        console.error('加载配置失败', e);
+                    }
+                };
+
+                // 开始搜索
+                const startSearch = async () => {
+                    if (!searchParams.value.topic) {
+                        alert('请输入搜索主题');
+                        return;
+                    }
+
+                    isSearching.value = true;
+                    taskProgress.value = 0;
+                    taskMessage.value = '启动任务...';
+                    taskStatus.value = 'pending';
+                    results.value = [];
+                    reviewContent.value = '';
+
+                    try {
+                        const res = await axios.post('/api/search', searchParams.value);
+                        taskId.value = res.data.task_id;
+                        pollStatus();
+                    } catch (e) {
+                        alert('启动搜索失败: ' + e.message);
+                        isSearching.value = false;
+                    }
+                };
+
+                // 轮询状态
+                const pollStatus = async () => {
+                    if (!taskId.value) return;
+
+                    try {
+                        const res = await axios.get(`/api/task/${taskId.value}`);
+                        const data = res.data;
+
+                        taskStatus.value = data.status;
+                        taskProgress.value = data.progress;
+                        taskMessage.value = data.message;
+
+                        if (data.status === 'completed') {
+                            await loadResults();
+                            isSearching.value = false;
+                        } else if (data.status === 'error') {
+                            alert('搜索出错: ' + data.message);
+                            isSearching.value = false;
+                        } else {
+                            setTimeout(pollStatus, 2000);
+                        }
+                    } catch (e) {
+                        console.error('获取状态失败', e);
+                        setTimeout(pollStatus, 2000);
+                    }
+                };
+
+                // 加载结果
+                const loadResults = async () => {
+                    try {
+                        const res = await axios.get(`/api/task/${taskId.value}/results`);
+                        results.value = res.data.results;
+                        reviewContent.value = res.data.review_content;
+                        files.value = res.data.files;
+                    } catch (e) {
+                        console.error('加载结果失败', e);
+                    }
+                };
+
+                // 下载文件
+                const downloadFile = (type) => {
+                    if (!files.value || !files.value[type]) return;
+
+                    const filename = files.value[type].split('/').pop();
+                    window.open(`/api/files/${filename}`, '_blank');
+                };
+
+                onMounted(() => {
+                    loadConfig();
+                });
+
+                return {
+                    searchParams,
+                    publishers,
+                    selectedPublishers,
+                    isSearching,
+                    taskProgress,
+                    taskMessage,
+                    taskStatus,
+                    results,
+                    reviewContent,
+                    startSearch,
+                    downloadFile
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

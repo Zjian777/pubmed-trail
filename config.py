@@ -4,7 +4,7 @@
 """
 
 # Deepseek API配置
-DEEPSEEK_API_KEY = ""  # 替换为您的Deepseek API Key
+DEEPSEEK_API_KEY = "API_KEY"  # 替换为您的Deepseek API Key
 DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
 DEEPSEEK_MODEL = "deepseek-chat"
 

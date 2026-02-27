@@ -90,7 +90,7 @@ class ArticleSummarizer:
 1. **研究类型**: (如基础研究、临床研究、综述、队列研究等)
 2. **主要发现**: (用1-2句话概括核心发现)
 3. **研究方法**: (简述使用的实验或分析方法)
-4. **临床意义**: (如果有，简要说明对食管癌诊疗的意义)
+4. **临床意义**: (如果有，简要说明意义)
 
 请用中文回答。"""
 
@@ -395,7 +395,7 @@ ESCC AND immune checkpoint
 
         # 优化：增加超时时间和token数量
         review_timeout = 120  # 120秒超时
-        review_max_tokens = 2000  # 文献综述需要更多token
+        review_max_tokens = 8192  # 文献综述需要更多token，Deepseek最大是8192
 
         for attempt in range(config.MAX_RETRIES):
             try:
