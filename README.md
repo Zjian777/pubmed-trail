@@ -1,128 +1,155 @@
-# PubMed 食管癌文献爬取与 AI 总结
+# PubMed文献搜索与AI总结工具
 
-一个从 PubMed 自动检索食管癌相关文献，筛选 Nature、Cell、Science 系列期刊，并使用 Deepseek AI 进行智能总结的工具。
+基于PubMed数据库的学术文献爬取与AI智能分析工具，可自动搜索文献、筛选高影响力期刊、AI优化检索词、多线程总结文章，并生成结构化的文献综述。
 
-## 功能特点
+## 功能特性
 
-- **文献检索**: 通过 PubMed API 自动搜索食管癌相关学术文献
-- **期刊筛选**: 智能筛选 Nature、Cell、Science 三大出版社旗下的顶级期刊
-- **AI 总结**: 使用 Deepseek API 对每篇文献进行结构化总结
-- **多格式输出**: 生成 Markdown 报告和 Excel 数据表格
+### 1. 自定义搜索
+- 用户输入搜索主题，AI自动优化为更精确的检索词
+- 可配置搜索日期范围和最大篇数
+- 支持命令行参数和交互式两种模式
 
-## 项目结构
+### 2. 智能检索词优化
+- 调用AI分析用户输入的主题
+- 生成包含MeSH主题词、同义词、布尔运算符的优化检索策略
 
-```
-pubmed-trail/
-├── main.py              # 主程序入口
-├── config.py            # 配置文件（API 密钥、搜索参数等）
-├── pubmed_crawler.py    # PubMed 爬取模块
-├── journal_filter.py    # 期刊筛选模块
-├── summarizer.py        # AI 总结模块
-├── output/              # 输出目录（自动生成）
-│   ├── report.md        # Markdown 报告
-│   └── articles.xlsx    # Excel 数据文件
-└── README.md            # 说明文档
-```
+### 3. 高影响力期刊筛选
+- 自动筛选Nature、Cell、Science系列期刊
+- 支持自定义期刊列表
+
+### 4. 多线程AI总结
+- 使用ThreadPoolExecutor并发调用Deepseek API
+- 并发数量可配置，大幅提升总结效率
+
+### 5. AI文献综述生成
+- 自动润色搜索主题（添加英文对照）
+- 生成SCI级别的结构化文献综述
+- 包含：摘要、引言、主体讨论、参考文献
 
 ## 安装依赖
 
 ```bash
-pip install biopython openpython requests
+pip install biopython requests openpyxl
 ```
 
-## 配置
+## 配置说明
 
-在运行前，需要编辑 `config.py` 文件配置以下参数：
-
-### 必填配置
+编辑 `config.py` 文件：
 
 ```python
-# Deepseek API 密钥
-DEEPSEEK_API_KEY = "your-api-key-here"
+# Deepseek API配置（必填）
+DEEPSEEK_API_KEY = "your-api-key"  # 替换为您的Deepseek API Key
 
-# PubMed 联系邮箱
+# PubMed配置（建议填写真实邮箱）
 PUBMED_EMAIL = "your-email@example.com"
+PUBMED_API_KEY = ""  # 可选：有PubMed API Key请填写
+
+# 搜索配置
+MAX_SEARCH_RESULTS = 100  # 最大搜索篇数
+MAX_WORKERS = 5  # 并发线程数
 ```
 
-### 可选配置
+获取Deepseek API Key: https://platform.deepseek.com/
 
-```python
-# 搜索词（默认搜索食管癌相关术语）
-SEARCH_TERMS = [
-    "esophageal cancer",
-    "esophageal carcinoma",
-    "esophagus cancer"
-]
+## 使用方法
 
-# 搜索起始日期
-SEARCH_START_DATE = "2025/09/01"
-
-# 输出目录和文件名
-OUTPUT_DIR = "output"
-REPORT_FILE = "report.md"
-EXCEL_FILE = "articles.xlsx"
-```
-
-## 运行程序
+### 命令行模式（推荐）
 
 ```bash
-python main.py
+# 基本用法
+python main.py -t "食管癌免疫治疗"
+
+# 完整参数
+python main.py -t "食管癌免疫治疗" -s 2024/01/01 -e 2025/12/31 -m 30 -w 5
 ```
 
-## 运行流程
+参数说明：
+- `-t, --topic`: 搜索主题（必填）
+- `-s, --start-date`: 开始日期 (YYYY/MM/DD)
+- `-e, --end-date`: 结束日期 (YYYY/MM/DD)
+- `-m, --max-results`: 最大搜索篇数
+- `-w, --workers`: 并发总结线程数
 
-程序执行分为四个步骤：
+### 交互式模式
 
-1. **搜索文献**: 使用 PubMed API 搜索食管癌相关文章
-2. **筛选期刊**: 从搜索结果中筛选 Nature、Cell、Science 系列期刊
-3. **AI 总结**: 调用 Deepseek API 对每篇文章生成结构化总结
-4. **保存输出**: 生成 Markdown 报告和 Excel 文件
+```bash
+python main.py --interactive
+```
+
+按提示输入搜索主题、日期范围等参数。
 
 ## 输出文件
 
-### Markdown 报告 (report.md)
+程序运行后在 `output/` 目录下生成：
 
-包含：
-- 整体统计信息（文章数量、出版社分布、期刊分布）
-- 每篇文章的详细信息（PMID、标题、期刊、作者、摘要、AI 总结）
+| 文件 | 说明 |
+|------|------|
+| `report.md` | 文章详细信息和AI总结 |
+| `literature_review.md` | **文献综述（单独文件）** |
+| `articles.xlsx` | Excel格式数据 |
 
-### Excel 文件 (articles.xlsx)
+## 项目结构
 
-包含结构化的文献数据，列包括：
-| 序号 | PMID | 标题 | 期刊 | 出版社 | 发表日期 | DOI | 作者 | 摘要 | AI 总结 |
+```
+.
+├── main.py              # 主程序入口
+├── config.py            # 配置文件
+├── pubmed_crawler.py    # PubMed爬虫模块
+├── summarizer.py        # AI总结模块
+├── journal_filter.py    # 期刊筛选模块
+├── output/              # 输出目录
+│   ├── report.md
+│   ├── literature_review.md
+│   └── articles.xlsx
+└── README.md
+```
 
-## AI 总结格式
+## 工作流程
 
-每篇文献的 AI 总结包含以下内容：
-- **研究类型**: 基础研究、临床研究、综述、队列研究等
-- **主要发现**: 核心发现的简要概括
-- **研究方法**: 使用的实验或分析方法
-- **临床意义**: 对食管癌诊疗的意义
-
-## 目标期刊
-
-程序筛选以下三大出版社的期刊：
-
-- **Nature 系列**: Nature, Nature Medicine, Nature Cancer, Nature Communications 等
-- **Cell 系列**: Cell, Cancer Cell, Cell Stem Cell, Cell Reports 等
-- **Science 系列**: Science, Science Translational Medicine, Science Advances 等
-
-完整期刊列表见 `config.py` 中的 `JOURNALS` 配置。
+```
+用户输入主题 → AI优化检索词 → PubMed搜索 → 期刊筛选 →
+多线程AI总结 → AI润色主题 → 生成文献综述 → 保存文件
+```
 
 ## 注意事项
 
-1. **API 限制**: PubMed API 有请求频率限制，程序已内置延迟控制
-2. **API 费用**: Deepseek API 为付费服务，请确保账户有足够余额
-3. **编码问题**: 程序已处理 Unicode 编码，确保中文正常显示
-4. **失败重试**: API 请求失败时会自动重试（最多 3 次）
+1. 需要有效的Deepseek API Key
+2. 确保网络可以访问PubMed和Deepseek API
+3. 建议合理设置搜索篇数，避免API调用过于频繁
+4. 文献综述生成时间较长，请耐心等待
 
-## 依赖库
+## 示例输出
 
-| 库名 | 用途 |
-|------|------|
-| biopython | PubMed API 调用 |
-| openpyxl | Excel 文件生成 |
-| requests | HTTP 请求（Deepseek API） |
+### AI优化检索词
+```
+优化后的检索词:
+  1. esophageal neoplasms AND immunotherapy
+  2. esophageal cancer AND immune checkpoint inhibitors
+  3. esophageal carcinoma OR ESCC AND PD-1 OR PD-L1
+  ...
+```
+
+### 生成的文献综述结构
+```
+## 食管癌免疫治疗研究进展
+
+### 1. 研究概述
+...
+
+### 2. 主要研究进展
+  2.1 围手术期免疫联合治疗
+  2.2 肿瘤微环境研究
+  ...
+
+### 3. 研究方法分析
+...
+
+### 4. 临床意义和展望
+...
+
+### 5. 参考文献
+[APA格式引用]
+```
 
 ## 许可证
 
