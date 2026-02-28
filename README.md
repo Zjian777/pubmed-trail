@@ -93,7 +93,7 @@ A: 检查 `web/static/js/` 目录下的库文件是否完整，路径是否正�
 
 A: 检查网络连接，本项目使用的是E-utilities，需要自行检测是否能够顺利连接E-utilities API
 
-B: 测试访问 https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=cancer&retmax=1&retmode=json 如果内容输出，则代表连接正常
+B: 测试访问 https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=cancer&retmax=1&retmode=json 如果有内容输出，则代表连接正常
 
 **Q: AI总结失败？**
 
