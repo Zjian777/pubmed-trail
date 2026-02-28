@@ -14,9 +14,7 @@ PUBMED_API_KEY = ""  # 可选：如果有PubMed API Key请填写
 
 # 搜索配置
 SEARCH_TERMS = [
-    "esophageal cancer",
-    "esophageal carcinoma",
-    "esophagus cancer"
+   
 ]
 SEARCH_START_DATE = "2025/09/01"  # 开始日期 (YYYY/MM/DD)
 SEARCH_END_DATE = ""  # 结束日期 (YYYY/MM/DD)，留空则为当前日期
