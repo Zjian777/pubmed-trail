@@ -1,4 +1,4 @@
-# PubMed文献搜索与AI总结系统 (Web版)
+# PubMed文献搜索与AI总结系统 
 
 基于PubMed数据库的学术文献智能分析系统，集成DeepSeek AI大模型，支持文献检索、AI智能总结和文献综述生成。
 
@@ -16,7 +16,7 @@ pip install -r requirements.txt
 编辑 `config.py` 文件：
 
 ```python
-# DeepSeek API配置 (必填)
+# DeepSeek API配置 (如果使用命令行程序运行必填，web端在网页中填写即可)
 DEEPSEEK_API_KEY = "your-deepseek-api-key"
 DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
 DEEPSEEK_MODEL = "deepseek-chat"
@@ -57,7 +57,7 @@ claude_test/
 ### 前端界面功能
 
 1. **API设置**：在界面输入DeepSeek API密钥
-2. **搜索主题**：输入要搜索的研究主题（如"食管癌免疫治疗"）
+2. **搜索主题**：输入要搜索的研究主题
 3. **时间范围**：设置搜索的起止日期
 4. **最大篇数**：设置要搜索的文献数量
 5. **并发线程数**：设置AI总结的并发数
@@ -74,19 +74,6 @@ claude_test/
 - **Markdown渲染**：文献综述支持Markdown格式渲染
 - **多种导出**：支持下载Markdown报告和Excel表格
 - **本地化部署**：前端库已下载到本地，无需外网访问
-
-## API接口
-
-| 接口 | 方法 | 说明 |
-|------|------|------|
-| `/` | GET | 前端页面 |
-| `/api/config` | GET | 获取配置信息 |
-| `/api/search` | POST | 启动搜索任务 |
-| `/api/task/<task_id>` | GET | 获取任务状态和实时结果 |
-| `/api/task/<task_id>/results` | GET | 获取任务最终结果 |
-| `/api/task/<task_id>/pause` | POST | 暂停任务 |
-| `/api/task/<task_id>/resume` | POST | 恢复任务 |
-| `/api/files/<filename>` | GET | 下载生成的文件 |
 
 ## 前端依赖
 
@@ -114,12 +101,17 @@ pip install flask flask-cors biopython openpyxl requests
 ## 常见问题
 
 **Q: 前端无法加载？**
+
 A: 检查 `web/static/js/` 目录下的库文件是否完整，路径是否正确
 
 **Q: PubMed搜索失败？**
-A: 检查网络连接，或在config.py中配置PubMed API Key
+
+A: 检查网络连接，本项目使用的是E-utilities，需要自行检测是否能够顺利连接E-utilities API
+
+B: 测试访问https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=cancer&retmax=1&retmode=json如果内容输出，则代表连接正常
 
 **Q: AI总结失败？**
+
 A: 检查DeepSeek API密钥是否正确，网络是否正常
 
 ---
