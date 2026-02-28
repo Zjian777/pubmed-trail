@@ -8,6 +8,7 @@
 
 ```bash
 cd web
+pip install flask flask-cors biopython openpyxl requests
 pip install -r requirements.txt
 ```
 
@@ -75,22 +76,6 @@ claude_test/
 - **多种导出**：支持下载Markdown报告和Excel表格
 - **本地化部署**：前端库已下载到本地，无需外网访问
 
-## 前端依赖
-
-已下载到 `web/static/js/` 目录：
-- vue.global.js (Vue3)
-- axios.min.js (HTTP客户端)
-- marked.min.js (Markdown解析)
-- tailwindcss.js (样式框架)
-
-## 依赖安装
-
-```bash
-# 核心依赖
-pip install flask flask-cors biopython openpyxl requests
-
-# Python版本: 3.8+
-```
 
 ## 注意事项
 
