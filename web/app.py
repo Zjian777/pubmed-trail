@@ -27,6 +27,12 @@ tasks = {}
 # 期刊配置
 journals_config = config.JOURNALS.copy()
 
+# 输出目录使用绝对路径
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), config.OUTPUT_DIR)
+
+# 确保输出目录存在
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
 
 # 前端页面路由
 @app.route('/')
@@ -44,7 +50,6 @@ def save_markdown_report(articles, output_path, overall_summary=""):
         f.write("---\n\n")
         for i, article in enumerate(articles, 1):
             f.write(f"## 文章 {i}: {article.get('title', '无标题')}\n\n")
-            f.write(f"**PMID**: {article.get('pmid', 'N/A')}\n\n")
             f.write(f"**期刊**: {article.get('journal', 'N/A')}\n\n")
             f.write(f"**出版社**: {article.get('publisher', 'N/A')}\n\n")
             f.write(f"**发表日期**: {article.get('pub_date', 'N/A')}\n\n")
@@ -73,7 +78,7 @@ def save_excel(articles, output_path):
     ws = wb.active
     ws.title = "文献"
 
-    headers = ["序号", "PMID", "标题", "期刊", "出版社", "发表日期", "DOI", "作者", "摘要", "AI总结"]
+    headers = ["序号", "标题", "期刊", "出版社", "发表日期", "DOI", "作者", "摘要", "AI总结"]
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
 
@@ -85,17 +90,16 @@ def save_excel(articles, output_path):
 
     for row, article in enumerate(articles, 2):
         ws.cell(row=row, column=1, value=row-1)
-        ws.cell(row=row, column=2, value=article.get("pmid", ""))
-        ws.cell(row=row, column=3, value=article.get("title", ""))
-        ws.cell(row=row, column=4, value=article.get("journal", ""))
-        ws.cell(row=row, column=5, value=article.get("publisher", ""))
-        ws.cell(row=row, column=6, value=article.get("pub_date", ""))
-        ws.cell(row=row, column=7, value=article.get("doi", ""))
-        ws.cell(row=row, column=8, value=article.get("authors", ""))
-        ws.cell(row=row, column=9, value=article.get("abstract", ""))
-        ws.cell(row=row, column=10, value=article.get("summary", ""))
+        ws.cell(row=row, column=2, value=article.get("title", ""))
+        ws.cell(row=row, column=3, value=article.get("journal", ""))
+        ws.cell(row=row, column=4, value=article.get("publisher", ""))
+        ws.cell(row=row, column=5, value=article.get("pub_date", ""))
+        ws.cell(row=row, column=6, value=article.get("doi", ""))
+        ws.cell(row=row, column=7, value=article.get("authors", ""))
+        ws.cell(row=row, column=8, value=article.get("abstract", ""))
+        ws.cell(row=row, column=9, value=article.get("summary", ""))
 
-    column_widths = {1: 6, 2: 12, 3: 60, 4: 30, 5: 10, 6: 12, 7: 25, 8: 40, 9: 80, 10: 100}
+    column_widths = {1: 6, 2: 60, 3: 30, 4: 10, 5: 12, 6: 25, 7: 40, 8: 80, 9: 100}
     for col, width in column_widths.items():
         ws.column_dimensions[get_column_letter(col)].width = width
 
@@ -110,18 +114,30 @@ def run_search_task(task_id, params):
     task['progress'] = 0
     task['message'] = '正在初始化...'
 
+    # 检查暂停/取消状态的辅助函数
+    def check_pause():
+        while task.get('paused', False) and not task.get('cancelled', False):
+            import time
+            time.sleep(0.5)
+        if task.get('cancelled', False):
+            raise Exception("任务已取消")
+
     try:
         from datetime import datetime
-        os.makedirs(config.OUTPUT_DIR, exist_ok=True)
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
 
         # 步骤1: AI优化检索词
+        check_pause()
         task['progress'] = 5
         task['message'] = 'AI优化检索词...'
-        summarizer = ArticleSummarizer()
+        # 获取用户提供的API密钥，如果没有则使用默认配置
+        api_key = params.get('api_key', config.DEEPSEEK_API_KEY)
+        summarizer = ArticleSummarizer(api_key=api_key)
         user_topic = params['topic']
         optimized_terms = summarizer.optimize_search_terms(user_topic)
 
         # 步骤2: 搜索文章
+        check_pause()
         task['progress'] = 10
         task['message'] = '正在搜索PubMed...'
         crawler = PubMedCrawler()
@@ -144,10 +160,29 @@ def run_search_task(task_id, params):
             return
 
         # 步骤3: 筛选期刊
-        task['progress'] = 30
-        task['message'] = '筛选期刊...'
-        journal_filter = JournalFilter()
-        filtered_articles = journal_filter.filter_articles(all_articles)
+        check_pause()
+        enable_filter = params.get('enable_filter', True)
+
+        if enable_filter:
+            task['progress'] = 30
+            task['message'] = '筛选期刊...'
+            journal_filter = JournalFilter()
+
+            # 获取前端传递的期刊列表，如果没有则使用全部期刊
+            selected_journals = params.get('selected_journals', [])
+            if selected_journals:
+                # 使用自定义期刊列表筛选
+                filtered_articles = journal_filter.filter_articles_by_journals(all_articles, selected_journals)
+            else:
+                # 使用默认配置筛选
+                filtered_articles = journal_filter.filter_articles(all_articles)
+        else:
+            # 不筛选，返回所有文章
+            task['progress'] = 30
+            task['message'] = '跳过筛选...'
+            filtered_articles = all_articles
+            for article in filtered_articles:
+                article["publisher"] = "Unknown"
 
         if not filtered_articles:
             task['status'] = 'completed'
@@ -160,14 +195,49 @@ def run_search_task(task_id, params):
         task['progress'] = 50
         task['message'] = 'AI总结文章中...'
         max_workers = params.get('max_workers', 5)
-        summarized_articles = summarizer.summarize_articles(filtered_articles, max_workers=max_workers)
+
+        # 使用字典来存储已完成文章的PMID和内容的映射
+        completed_articles = {}
+
+        # 创建进度回调函数，实时更新任务状态
+        def progress_callback(article, completed, total):
+            # 检查暂停或取消状态
+            while task.get('paused', False) and not task.get('cancelled', False):
+                import time
+                time.sleep(0.5)
+
+            if task.get('cancelled', False):
+                return
+
+            # 使用PMID或标题作为key
+            key = article.get('pmid') or article.get('title', '')
+            completed_articles[key] = article
+            # 从原始列表中找出已完成的文章
+            current_results = []
+            for a in filtered_articles:
+                k = a.get('pmid') or a.get('title', '')
+                if k in completed_articles:
+                    current_results.append(completed_articles[k])
+                else:
+                    current_results.append(a)
+            task['results'] = current_results
+            task['progress'] = 50 + int(30 * completed / total)
+            task['message'] = f'AI总结文章中... ({completed}/{total})'
+
+        summarized_articles = summarizer.summarize_articles(
+            filtered_articles,
+            max_workers=max_workers,
+            progress_callback=progress_callback
+        )
 
         # 步骤5: AI润色主题
+        check_pause()
         task['progress'] = 80
         task['message'] = '生成文献综述...'
         polished_topic = summarizer.polish_search_topic(user_topic)
 
         # 步骤6: 生成文献综述
+        check_pause()
         literature_review = summarizer.generate_literature_review(
             summarized_articles,
             polished_topic,
@@ -176,12 +246,13 @@ def run_search_task(task_id, params):
         )
 
         # 步骤7: 保存文件
+        check_pause()
         task['progress'] = 95
         task['message'] = '保存文件...'
 
-        report_path = os.path.join(config.OUTPUT_DIR, f"{task_id}_report.md")
-        review_path = os.path.join(config.OUTPUT_DIR, f"{task_id}_review.md")
-        excel_path = os.path.join(config.OUTPUT_DIR, f"{task_id}_articles.xlsx")
+        report_path = os.path.join(OUTPUT_DIR, f"{task_id}_report.md")
+        review_path = os.path.join(OUTPUT_DIR, f"{task_id}_review.md")
+        excel_path = os.path.join(OUTPUT_DIR, f"{task_id}_articles.xlsx")
 
         overall_summary = summarizer.generate_overall_summary(summarized_articles)
         save_markdown_report(summarized_articles, report_path, overall_summary)
@@ -199,17 +270,21 @@ def run_search_task(task_id, params):
         task['message'] = '完成!'
         task['results'] = summarized_articles
         task['files'] = {
-            'report': report_path,
-            'review': review_path,
-            'excel': excel_path
+            'report': os.path.basename(report_path),
+            'review': os.path.basename(review_path),
+            'excel': os.path.basename(excel_path)
         }
         task['review_content'] = review_content
         task['polished_topic'] = polished_topic
 
     except Exception as e:
-        task['status'] = 'error'
-        task['message'] = f'错误: {str(e)}'
-        task['error'] = str(e)
+        if task.get('cancelled', False):
+            task['status'] = 'cancelled'
+            task['message'] = '任务已取消'
+        else:
+            task['status'] = 'error'
+            task['message'] = f'错误: {str(e)}'
+            task['error'] = str(e)
 
 
 # ========== API接口 ==========
@@ -248,7 +323,9 @@ def start_search():
         'message': '等待中...',
         'params': params,
         'results': [],
-        'files': {}
+        'files': {},
+        'paused': False,
+        'cancelled': False
     }
 
     # 后台启动任务
@@ -268,12 +345,68 @@ def get_task_status(task_id):
     if not task:
         return jsonify({'error': '任务不存在'}), 404
 
-    return jsonify({
+    response = {
         'status': task['status'],
         'progress': task['progress'],
         'message': task['message'],
-        'result_count': len(task.get('results', []))
-    })
+        'result_count': len(task.get('results', [])),
+        'paused': task.get('paused', False)
+    }
+
+    # 如果任务正在运行或已完成，返回当前结果供实时显示
+    if task['status'] in ['running', 'completed', 'paused']:
+        response['results'] = task.get('results', [])
+        response['review_content'] = task.get('review_content', '')
+
+    return jsonify(response)
+
+
+@app.route('/api/task/<task_id>/pause', methods=['POST'])
+def pause_task(task_id):
+    """暂停任务"""
+    task = tasks.get(task_id)
+    if not task:
+        return jsonify({'error': '任务不存在'}), 404
+
+    if task['status'] != 'running':
+        return jsonify({'error': '任务不在运行中'}), 400
+
+    task['paused'] = True
+    task['status'] = 'paused'
+    task['message'] = '已暂停'
+
+    return jsonify({'status': 'success', 'message': '任务已暂停'})
+
+
+@app.route('/api/task/<task_id>/resume', methods=['POST'])
+def resume_task(task_id):
+    """恢复任务"""
+    task = tasks.get(task_id)
+    if not task:
+        return jsonify({'error': '任务不存在'}), 404
+
+    if task['status'] != 'paused':
+        return jsonify({'error': '任务不在暂停状态'}), 400
+
+    task['paused'] = False
+    task['status'] = 'running'
+    task['message'] = '继续运行...'
+
+    return jsonify({'status': 'success', 'message': '任务已恢复'})
+
+
+@app.route('/api/task/<task_id>/cancel', methods=['POST'])
+def cancel_task(task_id):
+    """取消任务"""
+    task = tasks.get(task_id)
+    if not task:
+        return jsonify({'error': '任务不存在'}), 404
+
+    task['cancelled'] = True
+    task['status'] = 'cancelled'
+    task['message'] = '任务已取消'
+
+    return jsonify({'status': 'success', 'message': '任务已取消'})
 
 
 @app.route('/api/task/<task_id>/results', methods=['GET'])
@@ -297,7 +430,7 @@ def get_task_results(task_id):
 @app.route('/api/files/<path:filename>')
 def download_file(filename):
     """下载输出文件"""
-    return send_from_directory(config.OUTPUT_DIR, filename)
+    return send_from_directory(OUTPUT_DIR, filename)
 
 
 if __name__ == '__main__':

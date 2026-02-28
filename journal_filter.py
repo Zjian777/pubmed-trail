@@ -128,6 +128,48 @@ class JournalFilter:
 
         return filtered
 
+    def filter_articles_by_journals(self, articles: List[Dict], target_journals: List[str]) -> List[Dict]:
+        """
+        根据自定义期刊列表筛选文章
+
+        Args:
+            articles: 文章列表
+            target_journals: 目标期刊名称列表
+
+        Returns:
+            筛选后的文章列表
+        """
+        # 标准化目标期刊列表
+        normalized_targets = set()
+        for journal in target_journals:
+            normalized_targets.add(self._normalize_journal_name(journal))
+
+        filtered = []
+
+        for article in articles:
+            journal = article.get("journal", "")
+            normalized_journal = self._normalize_journal_name(journal)
+
+            # 检查是否匹配目标期刊
+            is_match = False
+            matched_publisher = "Unknown"
+
+            for target in normalized_targets:
+                if normalized_journal == target or normalized_journal in target or target in normalized_journal:
+                    is_match = True
+                    matched_publisher = self.get_publisher(journal)
+                    break
+
+            if is_match:
+                article["publisher"] = matched_publisher
+                filtered.append(article)
+
+        print(f"筛选前: {len(articles)} 篇")
+        print(f"自定义期刊筛选后: {len(filtered)} 篇")
+        print(f"目标期刊数: {len(target_journals)}")
+
+        return filtered
+
     def get_all_target_journals(self) -> List[str]:
         """
         获取所有目标期刊列表

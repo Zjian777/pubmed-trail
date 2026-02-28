@@ -76,11 +76,7 @@ class ArticleSummarizer:
         Returns:
             提示词
         """
-        return f"""请分析以下关于食管癌的学术论文摘要，并按以下格式提供总结：
-
-## 文章信息
-- PMID: {pmid}
-- 标题: {title}
+        return f"""请分析以下学术论文摘要，并按以下格式提供总结：
 
 ## 摘要
 {abstract}
@@ -251,13 +247,14 @@ ESCC AND immune checkpoint
         article["summary"] = summary
         return article
 
-    def summarize_articles(self, articles: List[Dict], max_workers: int = None) -> List[Dict]:
+    def summarize_articles(self, articles: List[Dict], max_workers: int = None, progress_callback=None) -> List[Dict]:
         """
         批量总结文章（多线程并发）
 
         Args:
             articles: 文章列表
             max_workers: 最大并发线程数
+            progress_callback: 每完成一篇文章时的回调函数，签名为 callback(article, completed, total)
 
         Returns:
             添加了总结的文章列表
@@ -278,14 +275,19 @@ ESCC AND immune checkpoint
             completed = 0
             for future in as_completed(future_to_article):
                 completed += 1
+                article = future_to_article[future]
                 try:
                     future.result()
                 except Exception as e:
                     safe_print(f"Error summarizing article: {e}")
 
                 # 显示进度
-                title = future_to_article[future].get('title', '')[:30]
+                title = article.get('title', '')[:30]
                 safe_print(f"[{completed}/{total}] {title}...")
+
+                # 调用进度回调
+                if progress_callback:
+                    progress_callback(article, completed, total)
 
         safe_print(f"Completed summarization of {total} articles")
         return articles

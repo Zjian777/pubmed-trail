@@ -7,6 +7,7 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         .gradient-bg {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -15,6 +16,97 @@
             background: white;
             border-radius: 12px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        /* Markdown样式 */
+        .markdown-body {
+            line-height: 1.7;
+        }
+        .markdown-body h1 {
+            font-size: 1.5em;
+            font-weight: 600;
+            margin: 1em 0 0.5em;
+            color: #333;
+        }
+        .markdown-body h2 {
+            font-size: 1.25em;
+            font-weight: 600;
+            margin: 1em 0 0.5em;
+            color: #444;
+        }
+        .markdown-body h3 {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin: 0.8em 0 0.4em;
+            color: #555;
+        }
+        .markdown-body p {
+            margin: 0.5em 0;
+        }
+        .markdown-body ul, .markdown-body ol {
+            margin: 0.5em 0;
+            padding-left: 1.5em;
+        }
+        .markdown-body li {
+            margin: 0.25em 0;
+        }
+        .markdown-body code {
+            background: #f3f4f6;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        .markdown-body pre {
+            background: #f3f4f6;
+            padding: 1em;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 0.5em 0;
+        }
+        .markdown-body pre code {
+            background: transparent;
+            padding: 0;
+        }
+        .markdown-body blockquote {
+            border-left: 3px solid #667eea;
+            padding-left: 1em;
+            margin: 0.5em 0;
+            color: #666;
+        }
+        /* 文章AI总结样式 */
+        .article-summary {
+            line-height: 1.6;
+        }
+        .article-summary h1,
+        .article-summary h2,
+        .article-summary h3,
+        .article-summary h4 {
+            font-weight: 600;
+            margin: 0.75em 0 0.5em;
+            color: #333;
+        }
+        .article-summary h1 { font-size: 1.2em; }
+        .article-summary h2 { font-size: 1.1em; }
+        .article-summary h3 { font-size: 1em; }
+        .article-summary h4 { font-size: 0.95em; }
+        .article-summary p {
+            margin: 0.5em 0;
+        }
+        .article-summary ul, .article-summary ol {
+            margin: 0.5em 0;
+            padding-left: 1.25em;
+        }
+        .article-summary li {
+            margin: 0.25em 0;
+        }
+        .article-summary strong {
+            color: #6b21a8;
+            font-weight: 600;
+        }
+        .article-summary code {
+            background: #e5e7eb;
+            padding: 0.15em 0.3em;
+            border-radius: 3px;
+            font-size: 0.9em;
         }
     </style>
 </head>
@@ -34,6 +126,15 @@
                 <div class="lg:col-span-1">
                     <div class="card p-6">
                         <h2 class="text-xl font-semibold mb-4 text-gray-800">搜索配置</h2>
+
+                        <!-- API密钥设置 -->
+                        <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <label class="block text-sm font-medium text-yellow-800 mb-1">DeepSeek API密钥</label>
+                            <input v-model="apiKey" type="password"
+                                placeholder="请输入您的DeepSeek API密钥"
+                                class="w-full px-3 py-2 border border-yellow-300 rounded-lg text-sm">
+                            <p class="text-xs text-yellow-600 mt-1">用于AI总结，请妥善保存</p>
+                        </div>
 
                         <!-- 搜索主题 -->
                         <div class="mb-4">
@@ -73,27 +174,76 @@
 
                         <!-- 期刊筛选 -->
                         <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">期刊筛选</label>
-                            <div class="space-y-2">
-                                <div v-for="(journals, publisher) in publishers" :key="publisher" class="border rounded-lg p-3">
-                                    <div class="flex items-center justify-between mb-2">
-                                        <label class="font-medium text-gray-700">{{ publisher }}</label>
-                                        <input type="checkbox" v-model="selectedPublishers" :value="publisher"
-                                            class="w-4 h-4 text-purple-600">
-                                    </div>
-                                    <div class="ml-4 text-sm text-gray-500">
-                                        <span v-text="publishers[publisher] ? publishers[publisher].length : 0"></span> 种期刊
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="block text-sm font-medium text-gray-700">期刊筛选</label>
+                                <label class="flex items-center cursor-pointer">
+                                    <input type="checkbox" v-model="searchParams.enable_filter"
+                                        class="w-4 h-4 text-purple-600 rounded">
+                                    <span class="ml-2 text-sm text-gray-600">启用筛选</span>
+                                </label>
+                            </div>
+
+                            <!-- 期刊筛选内容 - 根据enable_filter显示 -->
+                            <div v-if="searchParams.enable_filter">
+                                <!-- 已选期刊显示 -->
+                                <div class="mb-2">
+                                    <div class="flex flex-wrap gap-1 min-h-[32px] p-2 border rounded-lg bg-gray-50">
+                                        <span v-if="selectedJournals.length === 0" class="text-gray-400 text-sm">请选择期刊...</span>
+                                        <span v-for="journal in selectedJournals" :key="journal"
+                                            class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-purple-100 text-purple-800">
+                                            {{ journal }}
+                                            <button @click="removeJournal(journal)" class="ml-1 text-purple-600 hover:text-purple-800">×</button>
+                                        </span>
                                     </div>
                                 </div>
+
+                                <!-- 出版社选择 -->
+                                <div class="border rounded-lg p-3 mb-2">
+                                    <div class="text-sm font-medium text-gray-600 mb-2">按出版社快速选择:</div>
+                                    <div class="space-y-2">
+                                        <div v-for="(journals, publisher) in publishers" :key="publisher" class="flex items-center justify-between">
+                                            <label class="text-sm text-gray-700">{{ publisher }} ({{ journals.length }})</label>
+                                            <div class="flex items-center gap-2">
+                                                <button @click="selectAllInPublisher(publisher)"
+                                                    class="text-xs text-blue-600 hover:text-blue-800">全选</button>
+                                                <button @click="deselectAllInPublisher(publisher)"
+                                                    class="text-xs text-gray-500 hover:text-gray-700">清空</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 添加自定义期刊 -->
+                                <div class="flex gap-2">
+                                    <input v-model="customJournal" type="text"
+                                        placeholder="输入自定义期刊名称"
+                                        class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                        @keyup.enter="addCustomJournal">
+                                    <button @click="addCustomJournal"
+                                        class="px-3 py-2 bg-purple-100 text-purple-700 rounded-lg text-sm hover:bg-purple-200">
+                                        添加
+                                    </button>
+                                </div>
+                            </div>
+                            <div v-else class="text-sm text-gray-400 py-2 text-center border border-dashed rounded-lg">
+                                筛选已禁用，将返回所有搜索结果
                             </div>
                         </div>
 
-                        <!-- 搜索按钮 -->
-                        <button @click="startSearch" :disabled="isSearching"
-                            class="w-full gradient-bg text-white py-3 px-4 rounded-lg font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                            <span v-if="!isSearching">开始搜索</span>
-                            <span v-else>搜索中...</span>
-                        </button>
+                        <!-- 搜索按钮和暂停按钮 -->
+                        <div class="flex gap-2">
+                            <button @click="startSearch" :disabled="isSearching"
+                                class="flex-1 gradient-bg text-white py-3 px-4 rounded-lg font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                                <span v-if="!isSearching">开始搜索</span>
+                                <span v-else-if="taskPaused">已暂停</span>
+                                <span v-else>搜索中...</span>
+                            </button>
+                            <button v-if="isSearching" @click="togglePause"
+                                class="px-4 py-3 rounded-lg font-medium transition"
+                                :class="taskPaused ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'">
+                                {{ taskPaused ? '继续' : '暂停' }}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -112,66 +262,65 @@
                         </div>
                     </div>
 
-                    <!-- 结果展示 -->
-                    <div v-if="results.length > 0" class="space-y-4">
+                    <!-- 结果展示 - 始终显示 -->
+                    <div class="space-y-4">
                         <!-- 文献综述 -->
                         <div class="card p-6">
                             <div class="flex items-center justify-between mb-4">
                                 <h3 class="text-xl font-semibold text-gray-800">文献综述</h3>
-                                <div class="space-x-2">
+                                <div v-if="reviewContent" class="space-x-2">
                                     <button @click="downloadFile('review')"
                                         class="px-3 py-1 bg-purple-100 text-purple-700 rounded text-sm hover:bg-purple-200">
                                         下载综述
                                     </button>
                                 </div>
                             </div>
-                            <div class="prose max-w-none text-sm text-gray-600 whitespace-pre-wrap">{{ reviewContent }}</div>
+                            <div v-if="reviewContent" class="prose max-w-none text-sm text-gray-600 markdown-body" v-html="renderMarkdown(reviewContent)"></div>
+                            <div v-else class="text-gray-400 text-center py-8">
+                                <svg class="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                                    </path>
+                                </svg>
+                                <p>{{ isSearching ? '正在生成文献综述...' : '请设置搜索参数并开始搜索' }}</p>
+                            </div>
                         </div>
 
                         <!-- 文章列表 -->
                         <div class="card p-6">
                             <div class="flex items-center justify-between mb-4">
                                 <h3 class="text-xl font-semibold text-gray-800">文章列表 ({{ results.length }})</h3>
-                                <button @click="downloadFile('excel')"
+                                <button v-if="results.length > 0" @click="downloadFile('excel')"
                                     class="px-3 py-1 bg-green-100 text-green-700 rounded text-sm hover:bg-green-200">
                                     下载Excel
                                 </button>
                             </div>
-                            <div class="space-y-4">
+                            <div v-if="results.length > 0" class="space-y-4">
                                 <div v-for="(article, index) in results" :key="index"
                                     class="border rounded-lg p-4 hover:shadow-md transition">
-                                    <div class="flex justify-between items-start">
-                                        <h4 class="font-medium text-gray-800 flex-1">{{ article.title }}</h4>
-                                        <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded ml-2">
-                                            {{ article.publisher }}
-                                        </span>
-                                    </div>
-                                    <div class="mt-2 text-sm text-gray-500">
-                                        <span>{{ article.journal }}</span>
+                                    <h4 class="font-medium text-gray-800">{{ article.title }}</h4>
+                                    <div class="mt-2 text-sm text-gray-500 flex flex-wrap gap-y-1">
+                                        <span class="text-purple-700 font-medium">{{ article.journal }}</span>
                                         <span class="mx-2">|</span>
                                         <span>{{ article.pub_date }}</span>
                                         <span class="mx-2">|</span>
-                                        <span>{{ article.authors }}</span>
+                                        <span class="break-all">{{ article.authors }}</span>
                                     </div>
                                     <div v-if="article.summary" class="mt-3 text-sm text-gray-600 bg-gray-50 p-3 rounded">
-                                        <strong class="text-purple-700">AI总结:</strong> {{ article.summary }}
+                                        <div class="font-semibold text-purple-700 mb-2">AI总结:</div>
+                                        <div class="article-summary" v-html="renderMarkdown(article.summary)"></div>
                                     </div>
                                 </div>
                             </div>
+                            <div v-else class="text-gray-400 text-center py-8">
+                                <svg class="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+                                    </path>
+                                </svg>
+                                <p>{{ isSearching ? '正在搜索文章...' : '请设置搜索参数并开始搜索' }}</p>
+                            </div>
                         </div>
-                    </div>
-
-                    <!-- 初始状态 -->
-                    <div v-if="!isSearching && results.length === 0 && !taskStatus" class="card p-12 text-center">
-                        <div class="text-gray-400 mb-4">
-                            <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
-                                </path>
-                            </svg>
-                        </div>
-                        <h3 class="text-lg font-medium text-gray-600">配置搜索参数开始搜索</h3>
-                        <p class="text-gray-400 mt-2">搜索结果将显示在这里</p>
                     </div>
                 </div>
             </div>
@@ -195,26 +344,85 @@
                     start_date: lastYearDate,
                     end_date: today,
                     max_results: 30,
-                    max_workers: 5
+                    max_workers: 5,
+                    enable_filter: false
                 });
 
                 const publishers = ref({});
-                const selectedPublishers = ref([]);
+                const selectedJournals = ref([]);
+                const customJournal = ref('');
+                const apiKey = ref('');
                 const isSearching = ref(false);
                 const taskId = ref('');
                 const taskProgress = ref(0);
                 const taskMessage = ref('');
                 const taskStatus = ref('');
+                const taskPaused = ref(false);
                 const results = ref([]);
                 const reviewContent = ref('');
                 const files = ref({});
+
+                // 获取所有期刊列表（平铺）
+                const getAllJournals = () => {
+                    const all = [];
+                    for (const publisher in publishers.value) {
+                        all.push(...publishers.value[publisher]);
+                    }
+                    return [...new Set(all)].sort();
+                };
+
+                // 加载配置时初始化所有期刊
+                const initSelectedJournals = () => {
+                    selectedJournals.value = getAllJournals();
+                };
+
+                // 添加自定义期刊
+                const addCustomJournal = () => {
+                    const journal = customJournal.value.trim();
+                    if (journal && !selectedJournals.value.includes(journal)) {
+                        selectedJournals.value.push(journal);
+                        selectedJournals.value.sort();
+                    }
+                    customJournal.value = '';
+                };
+
+                // 移除期刊
+                const removeJournal = (journal) => {
+                    const idx = selectedJournals.value.indexOf(journal);
+                    if (idx > -1) {
+                        selectedJournals.value.splice(idx, 1);
+                    }
+                };
+
+                // 选择出版社下的所有期刊
+                const selectAllInPublisher = (publisher) => {
+                    const journals = publishers.value[publisher] || [];
+                    journals.forEach(j => {
+                        if (!selectedJournals.value.includes(j)) {
+                            selectedJournals.value.push(j);
+                        }
+                    });
+                    selectedJournals.value.sort();
+                };
+
+                // 清空出版社下的所有期刊
+                const deselectAllInPublisher = (publisher) => {
+                    const journals = publishers.value[publisher] || [];
+                    selectedJournals.value = selectedJournals.value.filter(j => !journals.includes(j));
+                };
+
+                // 渲染Markdown
+                const renderMarkdown = (text) => {
+                    if (!text) return '';
+                    return marked.parse(text);
+                };
 
                 // 获取配置
                 const loadConfig = async () => {
                     try {
                         const res = await axios.get('/api/config');
                         publishers.value = res.data.journals;
-                        selectedPublishers.value = Object.keys(res.data.journals);
+                        initSelectedJournals();
 
                         const defaults = res.data.defaults;
                         searchParams.value.max_results = defaults.max_results;
@@ -232,6 +440,17 @@
                         return;
                     }
 
+                    if (!apiKey.value) {
+                        alert('请输入DeepSeek API密钥');
+                        return;
+                    }
+
+                    // 只有启用筛选时才检查期刊选择
+                    if (searchParams.value.enable_filter && selectedJournals.value.length === 0) {
+                        alert('请至少选择一个期刊');
+                        return;
+                    }
+
                     isSearching.value = true;
                     taskProgress.value = 0;
                     taskMessage.value = '启动任务...';
@@ -240,7 +459,13 @@
                     reviewContent.value = '';
 
                     try {
-                        const res = await axios.post('/api/search', searchParams.value);
+                        // 将选中的期刊传递给后端
+                        const params = {
+                            ...searchParams.value,
+                            selected_journals: selectedJournals.value,
+                            api_key: apiKey.value
+                        };
+                        const res = await axios.post('/api/search', params);
                         taskId.value = res.data.task_id;
                         pollStatus();
                     } catch (e) {
@@ -260,13 +485,29 @@
                         taskStatus.value = data.status;
                         taskProgress.value = data.progress;
                         taskMessage.value = data.message;
+                        taskPaused.value = data.paused || false;
+
+                        // 实时更新当前已完成的论文和综述内容
+                        if (data.results && data.results.length > 0) {
+                            results.value = data.results;
+                        }
+                        if (data.review_content) {
+                            reviewContent.value = data.review_content;
+                        }
 
                         if (data.status === 'completed') {
                             await loadResults();
                             isSearching.value = false;
+                        } else if (data.status === 'cancelled') {
+                            isSearching.value = false;
+                            taskPaused.value = false;
+                            alert('任务已取消');
                         } else if (data.status === 'error') {
                             alert('搜索出错: ' + data.message);
                             isSearching.value = false;
+                        } else if (data.status === 'paused') {
+                            // 暂停状态，继续轮询以检测恢复
+                            setTimeout(pollStatus, 1000);
                         } else {
                             setTimeout(pollStatus, 2000);
                         }
@@ -288,12 +529,50 @@
                     }
                 };
 
-                // 下载文件
-                const downloadFile = (type) => {
+                // 暂停/恢复任务
+                const togglePause = async () => {
+                    if (!taskId.value) return;
+
+                    try {
+                        if (taskPaused.value) {
+                            // 恢复任务
+                            await axios.post(`/api/task/${taskId.value}/resume`);
+                            taskPaused.value = false;
+                        } else {
+                            // 暂停任务
+                            await axios.post(`/api/task/${taskId.value}/pause`);
+                            taskPaused.value = true;
+                        }
+                    } catch (e) {
+                        console.error('暂停/恢复失败', e);
+                    }
+                };
+
+                // 下载文件 - 修复版
+                const downloadFile = async (type) => {
                     if (!files.value || !files.value[type]) return;
 
                     const filename = files.value[type].split('/').pop();
-                    window.open(`/api/files/${filename}`, '_blank');
+                    const url = `/api/files/${filename}`;
+
+                    try {
+                        const response = await axios.get(url, {
+                            responseType: 'blob'
+                        });
+                        const blob = new Blob([response.data]);
+                        const downloadUrl = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = downloadUrl;
+                        link.download = filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.URL.revokeObjectURL(downloadUrl);
+                    } catch (e) {
+                        console.error('下载失败', e);
+                        // 降级方案
+                        window.open(url, '_blank');
+                    }
                 };
 
                 onMounted(() => {
@@ -303,14 +582,23 @@
                 return {
                     searchParams,
                     publishers,
-                    selectedPublishers,
+                    selectedJournals,
+                    customJournal,
+                    apiKey,
+                    addCustomJournal,
+                    removeJournal,
+                    selectAllInPublisher,
+                    deselectAllInPublisher,
+                    renderMarkdown,
                     isSearching,
                     taskProgress,
                     taskMessage,
                     taskStatus,
+                    taskPaused,
                     results,
                     reviewContent,
                     startSearch,
+                    togglePause,
                     downloadFile
                 };
             }

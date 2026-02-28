@@ -1,10 +1,10 @@
 """
-配置文件 - PubMed食管癌文献爬取与AI总结
+配置文件 - PubMed文献爬取与AI总结
 请在此文件中配置您的API密钥和设置
 """
 
 # Deepseek API配置
-DEEPSEEK_API_KEY = "API_KEY"  # 替换为您的Deepseek API Key
+DEEPSEEK_API_KEY = "API_key"  # 替换为您的Deepseek API Key
 DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
 DEEPSEEK_MODEL = "deepseek-chat"
 
